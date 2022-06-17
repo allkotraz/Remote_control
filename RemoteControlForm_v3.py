@@ -3,10 +3,12 @@ import http.client
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from datetime import datetime
-from mouse import MouseWorker
-from multiprocessing.dummy import Process
+from rc_mouse import MouseWorker
+from rc_keyboard import Worker_Keyboard
 
 import socket
+
+_isRunning = False
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -83,13 +85,13 @@ class Ui_MainWindow(object):
         Main_Window = self
 
         self.mouse_worker = MouseWorker(Main_Window)
-        # self.worker_key = Worker_Keyboard(Main_Window)
+        self.worker_keyboard = Worker_Keyboard(Main_Window)
         # self.worker_server = WorkerHTTPServer(Main_Window)
         self.mouse_thread = QThread()
-        # self.thread_key = QThread()
+        self.thread_keyboard = QThread()
         # self.thread_server = QThread()
         self.mouse_worker.progress.connect(self.button_start)
-        # self.worker_key.progress.connect(self.button_start)
+        self.worker_keyboard.progress.connect(self.button_start)
         # self.worker_server.progress.connect(self.button_start)
 
         self.retranslate_ui(MainWindow)
@@ -128,6 +130,8 @@ class Ui_MainWindow(object):
         self.log_view.append(f"{now.strftime('%Y-%m-%d %H:%M:%S')} - {action_name}")
 
     def start_stop(self, bool):
+        global _isRunning
+        _isRunning = bool
         self._isRunning = bool
         self.pushButton_start.setEnabled(not bool)
         self.pushButton_stop.setEnabled(bool)
@@ -141,17 +145,28 @@ class Ui_MainWindow(object):
         self.mouse_worker.stop()
         self.mouse_thread.quit()
 
+    def start_keyboard_listener(self):
+        self.worker_keyboard.moveToThread(self.thread_keyboard)
+        self.thread_keyboard.started.connect(self.worker_keyboard.run)
+        self.thread_keyboard.start()
+
+    def stop_keyboard_listener(self):
+        self.worker_keyboard.stop()
+        self.thread_keyboard.quit()
+
     def start_thread(self):
         self.start_stop(True)
 
         if not self._client.isChecked():
             self.start_mouse_listener()
+            self.start_keyboard_listener()
         self.append_text_log(action_name="Start")
 
     def stop_thread(self):
         self.start_stop(False)
         if not self._client.isChecked():
             self.stop_mouse_listener()
+            self.stop_keyboard_listener()
         self.append_text_log(action_name="Stop")
 
     def msg_print(self):
